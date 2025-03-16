@@ -32,37 +32,46 @@ export const QuizSection = ({
   const totalQuestions = questions.length;
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
+  // Initialize and start timer when component mounts or question changes
   useEffect(() => {
+    console.log("Setting up timer for question", currentQuestionIndex);
+    
     // Reset state when question changes
     setTimeLeft(20);
     setIsAnswerSelected(false);
     setSelectedAnswerIndex(null);
     setFadeIn(true);
 
-    // Clear existing timer
+    // Clear existing timer to prevent duplicates
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
     }
 
     // Start new timer
-    timerIntervalRef.current = setInterval(() => {
+    const intervalId = setInterval(() => {
       setTimeLeft((prevTime) => {
+        console.log("Timer tick, time left:", prevTime);
+        
         if (prevTime <= 1) {
           // Time's up - clear interval and notify parent
-          clearInterval(timerIntervalRef.current!);
+          clearInterval(intervalId);
+          
+          // Only mark as answered if not already answered
           if (!isAnswerSelected) {
+            console.log("Time up, marking as answered");
             setIsAnswerSelected(true);
             onTimeUp();
           }
           return 0;
         }
         
-        // Play tick sound when time is running low (fixed)
+        // Play tick sound when time is running low
         if (prevTime <= 5) {
           try {
             playTickSound();
           } catch (e) {
-            console.log("Error playing sound (handled)", e);
+            console.log("Error playing tick sound:", e);
           }
         }
         
@@ -70,33 +79,47 @@ export const QuizSection = ({
       });
     }, 1000);
 
-    // Cleanup
+    // Store the interval ID
+    timerIntervalRef.current = intervalId;
+    
+    // Cleanup on unmount or before next effect
     return () => {
+      console.log("Cleaning up timer");
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
       }
     };
-  }, [currentQuestionIndex, questions, onTimeUp, isAnswerSelected]);
+  }, [currentQuestionIndex, onTimeUp]);
 
   const handleAnswerClick = (index: number) => {
+    // If already answered, don't allow multiple selections
     if (isAnswerSelected) return;
 
     // Clear timer
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
     }
 
     const isCorrect = index === currentQuestion.correctAnswer;
     
     // Play sound based on answer
-    if (isCorrect) {
-      playCorrectSound();
-    } else {
-      playIncorrectSound();
+    try {
+      if (isCorrect) {
+        playCorrectSound();
+      } else {
+        playIncorrectSound();
+      }
+    } catch (e) {
+      console.error("Error playing sound:", e);
     }
     
+    // Mark as answered to prevent multiple selections
     setIsAnswerSelected(true);
     setSelectedAnswerIndex(index);
+    
+    // Tell parent component about the answer (only once)
     onAnswerSelected(isCorrect);
   };
 
@@ -214,10 +237,16 @@ export const QuizSection = ({
               // Mark as answered but don't give points
               if (timerIntervalRef.current) {
                 clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = null;
               }
               setIsAnswerSelected(true);
               setSelectedAnswerIndex(null);
-              playIncorrectSound();
+              try {
+                playIncorrectSound();
+              } catch (e) {
+                console.error("Error playing sound:", e);
+              }
+              onTimeUp(); // Notify parent component to handle the skipped question
             }}
             className="bg-gray-400 hover:bg-gray-500 text-white font-montserrat py-2 px-6 rounded-lg transition-all duration-300"
           >
