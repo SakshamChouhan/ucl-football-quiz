@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { QuizQuestion } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { getFeedbackText } from "@/lib/questions";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Trophy } from "lucide-react";
 import { playCorrectSound, playIncorrectSound, playTickSound } from "@/lib/sounds";
 
 interface QuizSectionProps {
@@ -57,9 +57,13 @@ export const QuizSection = ({
           return 0;
         }
         
-        // Play tick sound when time is running low
+        // Play tick sound when time is running low (fixed)
         if (prevTime <= 5) {
-          playTickSound();
+          try {
+            playTickSound();
+          } catch (e) {
+            console.log("Error playing sound (handled)", e);
+          }
         }
         
         return prevTime - 1;
@@ -189,9 +193,9 @@ export const QuizSection = ({
         </div>
       )}
 
-      {/* Skip/Next Button */}
+      {/* Next Button - Always show after answering */}
       <div className="flex justify-end">
-        {isAnswerSelected && (
+        {isAnswerSelected ? (
           <button
             id="next-question-btn"
             onClick={handleNextQuestion}
@@ -202,6 +206,22 @@ export const QuizSection = ({
             ) : (
               <>Next Question <ArrowRight className="w-5 h-5 ml-2" /></>
             )}
+          </button>
+        ) : (
+          <button
+            id="skip-question-btn"
+            onClick={() => {
+              // Mark as answered but don't give points
+              if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+              }
+              setIsAnswerSelected(true);
+              setSelectedAnswerIndex(null);
+              playIncorrectSound();
+            }}
+            className="bg-gray-400 hover:bg-gray-500 text-white font-montserrat py-2 px-6 rounded-lg transition-all duration-300"
+          >
+            Skip Question
           </button>
         )}
       </div>

@@ -5,6 +5,7 @@ import { queryClient } from "@/lib/queryClient";
 import { QuizQuestion, LeaderboardEntry } from "@shared/schema";
 import { sortQuestionsByDifficulty, backupQuestions } from "@/lib/questions";
 import { useToast } from "@/hooks/use-toast";
+import { Trophy } from "lucide-react";
 
 import UCLLogo from "@/components/quiz/UCLLogo";
 import StartScreen from "@/components/quiz/StartScreen";
@@ -124,6 +125,7 @@ const Home = () => {
     if (isCorrect) {
       setScore((prev) => prev + 1);
     }
+    // Don't add score if incorrect
   };
 
   // Handle time up for a question
@@ -168,7 +170,7 @@ const Home = () => {
   // Render the appropriate screen based on state
   return (
     <div className="stars-background min-h-screen">
-      <style jsx>{`
+      <style>{`
         .stars-background {
           background-color: #0e1e5b;
           background-image: radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 10px),
@@ -180,7 +182,21 @@ const Home = () => {
         }
       `}</style>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <UCLLogo />
+        {/* Logo only on start screen */}
+        {screenState === ScreenState.START ? (
+          <UCLLogo />
+        ) : (
+          <div className="flex justify-center mb-4">
+            <div className="relative w-24 h-24 md:w-32 md:h-32">
+              <div className="absolute inset-0 rounded-full bg-[#0e1e5b] border-2 border-[#b3b3b3] flex items-center justify-center">
+                <div className="text-[#b3b3b3] text-center">
+                  <Trophy className="w-8 h-8 mx-auto mb-1 text-[#cfa00d]" />
+                  <div className="font-montserrat font-bold text-xs md:text-sm">UCL QUIZ</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {screenState === ScreenState.START && (
           <StartScreen
