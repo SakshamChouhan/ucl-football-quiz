@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
@@ -22,20 +22,25 @@ enum ScreenState {
 }
 
 const Home = () => {
-  // State
+  // Core state
   const [screenState, setScreenState] = useState<ScreenState>(ScreenState.START);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [showNameModal, setShowNameModal] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
   const [totalQuizTime, setTotalQuizTime] = useState(0);
+  
+  // UI feedback
   const { toast } = useToast();
+  
+  // Refs to prevent duplicate actions
+  const answerProcessedRef = useRef(false);
+  const timeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch questions
-  const { data: questions = [], isLoading: isLoadingQuestions } = useQuery<QuizQuestion[]>({
+  const { data: questions = [], isLoading: isLoadingQuestions } = useQuery({
     queryKey: ["/api/questions"],
-    onError: (error) => {
-      console.error("Failed to fetch questions:", error);
+    onError: () => {
       toast({
         title: "Failed to fetch questions",
         description: "Using backup questions instead",
@@ -54,10 +59,9 @@ const Home = () => {
     data: leaderboard = [], 
     isLoading: isLoadingLeaderboard,
     refetch: refetchLeaderboard
-  } = useQuery<LeaderboardEntry[]>({
+  } = useQuery({
     queryKey: ["/api/leaderboard"],
-    onError: (error) => {
-      console.error("Failed to fetch leaderboard:", error);
+    onError: () => {
       toast({
         title: "Failed to fetch leaderboard",
         description: "Please try again later",
@@ -80,8 +84,7 @@ const Home = () => {
       setShowNameModal(false);
       setScreenState(ScreenState.LEADERBOARD);
     },
-    onError: (error) => {
-      console.error("Failed to submit score:", error);
+    onError: () => {
       toast({
         title: "Failed to submit score",
         description: "Please try again later",
@@ -90,82 +93,103 @@ const Home = () => {
     },
   });
 
+  // Clean up timers
+  const cleanupTimers = useCallback(() => {
+    if (timeIntervalRef.current) {
+      clearInterval(timeIntervalRef.current);
+      timeIntervalRef.current = null;
+    }
+  }, []);
+
   // Update total time when quiz is running
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    cleanupTimers();
     
     if (screenState === ScreenState.QUIZ && quizStartTime) {
-      intervalId = setInterval(() => {
+      timeIntervalRef.current = setInterval(() => {
         setTotalQuizTime(Math.floor((Date.now() - quizStartTime) / 1000));
       }, 1000);
     }
     
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [screenState, quizStartTime]);
+    return cleanupTimers;
+  }, [screenState, quizStartTime, cleanupTimers]);
+  
+  // Reset answer processed flag when question changes
+  useEffect(() => {
+    answerProcessedRef.current = false;
+  }, [currentQuestionIndex]);
 
   // Handle starting the quiz
-  const handleStartQuiz = () => {
+  const handleStartQuiz = useCallback(() => {
     setScreenState(ScreenState.QUIZ);
     setCurrentQuestionIndex(0);
     setScore(0);
     setQuizStartTime(Date.now());
     setTotalQuizTime(0);
-  };
+    answerProcessedRef.current = false;
+  }, []);
 
   // Handle showing the leaderboard
-  const handleShowLeaderboard = async () => {
+  const handleShowLeaderboard = useCallback(() => {
     setScreenState(ScreenState.LEADERBOARD);
     refetchLeaderboard();
-  };
+  }, [refetchLeaderboard]);
 
   // Handle quiz answer selection
-  const handleAnswerSelected = (isCorrect: boolean) => {
+  const handleAnswerSelected = useCallback((isCorrect: boolean) => {
+    // Prevent multiple score updates for the same question
+    if (answerProcessedRef.current) return;
+    
+    answerProcessedRef.current = true;
+    
     if (isCorrect) {
-      setScore((prev) => prev + 1);
+      setScore(prev => prev + 1);
     }
-    // Don't add score if incorrect
-  };
+  }, []);
 
-  // Handle time up for a question
-  const handleTimeUp = () => {
-    // No score change needed for time up
-  };
+  // Handle time up for a question (no score change)
+  const handleTimeUp = useCallback(() => {
+    // Prevent multiple actions
+    if (answerProcessedRef.current) return;
+    
+    answerProcessedRef.current = true;
+    // No score added for time up
+  }, []);
 
   // Handle moving to the next question
-  const handleNextQuestion = () => {
+  const handleNextQuestion = useCallback(() => {
     if (currentQuestionIndex < sortedQuestions.length - 1) {
-      setCurrentQuestionIndex((prev) => prev + 1);
+      setCurrentQuestionIndex(prev => prev + 1);
     } else {
+      cleanupTimers();
       setScreenState(ScreenState.RESULTS);
     }
-  };
+  }, [currentQuestionIndex, sortedQuestions.length, cleanupTimers]);
 
   // Handle saving the score (show name entry modal)
-  const handleSaveScore = () => {
+  const handleSaveScore = useCallback(() => {
     setShowNameModal(true);
-  };
+  }, []);
 
   // Handle submitting the name and score
-  const handleSubmitName = (playerName: string) => {
+  const handleSubmitName = useCallback((playerName: string) => {
     submitScoreMutation.mutate({
       playerName,
       score,
       totalQuestions: sortedQuestions.length,
       timeInSeconds: totalQuizTime
     });
-  };
+  }, [score, sortedQuestions.length, totalQuizTime, submitScoreMutation]);
 
   // Handle restarting the quiz
-  const handleRestartQuiz = () => {
+  const handleRestartQuiz = useCallback(() => {
     handleStartQuiz();
-  };
+  }, [handleStartQuiz]);
 
   // Handle going back to the start screen
-  const handleBackToStart = () => {
+  const handleBackToStart = useCallback(() => {
     setScreenState(ScreenState.START);
-  };
+  }, []);
 
   // Render the appropriate screen based on state
   return (
