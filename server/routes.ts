@@ -3,16 +3,18 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertLeaderboardEntrySchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
+import { getRandomQuestions } from "@/lib/questions";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize default quiz questions
   await storage.initializeDefaultQuestions();
 
-  // Get all quiz questions
+  // Get quiz questions - returns random set for each session
   app.get("/api/questions", async (req, res) => {
     try {
-      const questions = await storage.getQuizQuestions();
-      res.json(questions);
+      const allQuestions = await storage.getQuizQuestions();
+      const randomizedQuestions = getRandomQuestions(allQuestions, 15);
+      res.json(randomizedQuestions);
     } catch (error) {
       console.error("Error fetching questions:", error);
       res.status(500).json({ message: "Failed to fetch questions" });
