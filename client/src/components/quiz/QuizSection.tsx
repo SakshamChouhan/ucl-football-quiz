@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { QuizQuestion } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { getFeedbackText } from "@/lib/questions";
@@ -26,85 +26,44 @@ export const QuizSection = ({
   const [isAnswerSelected, setIsAnswerSelected] = useState(false);
   const [selectedAnswerIndex, setSelectedAnswerIndex] = useState<number | null>(null);
   const [fadeIn, setFadeIn] = useState(true);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Create stateful timer ref - used to track active timer
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track if answer has been processed to prevent multiple score counts
+  const answerProcessedRef = useRef(false);
+
+  // Current question info
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.length;
-  const isLastQuestion = currentQuestionIndex === questions.length - 1;
+  const isLastQuestion = currentQuestionIndex === totalQuestions - 1;
+  
+  // Option letters
+  const optionLetters = ["A", "B", "C", "D"];
 
-  // Initialize and start timer when component mounts or question changes
-  useEffect(() => {
-    console.log("Setting up timer for question", currentQuestionIndex);
-    
-    // Reset state when question changes
-    setTimeLeft(20);
-    setIsAnswerSelected(false);
-    setSelectedAnswerIndex(null);
-    setFadeIn(true);
-
-    // Clear existing timer to prevent duplicates
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
+  // Stop timer function - extracted to reuse
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
+  }, []);
 
-    // Start new timer
-    const intervalId = setInterval(() => {
-      setTimeLeft((prevTime) => {
-        console.log("Timer tick, time left:", prevTime);
-        
-        if (prevTime <= 1) {
-          // Time's up - clear interval and notify parent
-          clearInterval(intervalId);
-          
-          // Only mark as answered if not already answered
-          if (!isAnswerSelected) {
-            console.log("Time up, marking as answered");
-            setIsAnswerSelected(true);
-            onTimeUp();
-          }
-          return 0;
-        }
-        
-        // Play tick sound when time is running low
-        if (prevTime <= 5) {
-          try {
-            playTickSound();
-          } catch (e) {
-            console.log("Error playing tick sound:", e);
-          }
-        }
-        
-        return prevTime - 1;
-      });
-    }, 1000);
+  // Handle selecting an answer
+  const handleAnswerClick = useCallback((index: number) => {
+    // Prevent action if answer already selected
+    if (isAnswerSelected || answerProcessedRef.current) return;
 
-    // Store the interval ID
-    timerIntervalRef.current = intervalId;
+    // Mark as processed to prevent multiple calls
+    answerProcessedRef.current = true;
     
-    // Cleanup on unmount or before next effect
-    return () => {
-      console.log("Cleaning up timer");
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    };
-  }, [currentQuestionIndex, onTimeUp]);
+    // Stop the timer
+    stopTimer();
 
-  const handleAnswerClick = (index: number) => {
-    // If already answered, don't allow multiple selections
-    if (isAnswerSelected) return;
-
-    // Clear timer
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-
+    // Check if answer is correct
     const isCorrect = index === currentQuestion.correctAnswer;
     
-    // Play sound based on answer
+    // Play appropriate sound
     try {
       if (isCorrect) {
         playCorrectSound();
@@ -112,26 +71,105 @@ export const QuizSection = ({
         playIncorrectSound();
       }
     } catch (e) {
-      console.error("Error playing sound:", e);
+      console.error("Sound playback error:", e);
     }
     
-    // Mark as answered to prevent multiple selections
+    // Update UI state
     setIsAnswerSelected(true);
     setSelectedAnswerIndex(index);
     
-    // Tell parent component about the answer (only once)
+    // Notify parent component (only once)
     onAnswerSelected(isCorrect);
-  };
+  }, [currentQuestion, isAnswerSelected, onAnswerSelected, stopTimer]);
 
-  const handleNextQuestion = () => {
+  // Skip question handler
+  const handleSkipQuestion = useCallback(() => {
+    // Prevent action if answer already selected
+    if (isAnswerSelected || answerProcessedRef.current) return;
+    
+    // Mark as processed
+    answerProcessedRef.current = true;
+    
+    // Stop the timer
+    stopTimer();
+    
+    // Play incorrect sound
+    try {
+      playIncorrectSound();
+    } catch (e) {
+      console.error("Sound playback error:", e);
+    }
+    
+    // Update UI state
+    setIsAnswerSelected(true);
+    setSelectedAnswerIndex(null);
+    
+    // Notify parent
+    onTimeUp();
+  }, [isAnswerSelected, onTimeUp, stopTimer]);
+
+  // Next question handler
+  const handleNextQuestion = useCallback(() => {
     setFadeIn(false);
     setTimeout(() => {
       onNextQuestion();
     }, 300);
-  };
+  }, [onNextQuestion]);
 
-  // Calculate options with letters
-  const optionLetters = ["A", "B", "C", "D"];
+  // Initialize and reset for each new question
+  useEffect(() => {
+    // Reset UI state
+    setTimeLeft(20);
+    setIsAnswerSelected(false);
+    setSelectedAnswerIndex(null);
+    setFadeIn(true);
+    answerProcessedRef.current = false;
+    
+    // Stop any existing timer
+    stopTimer();
+    
+    // Start a new timer - countdown from 20 seconds
+    const newTimer = setInterval(() => {
+      setTimeLeft(prev => {
+        // When time runs out
+        if (prev <= 1) {
+          // Clean up timer
+          clearInterval(newTimer);
+          
+          // If answer not already processed, handle timeout
+          if (!answerProcessedRef.current) {
+            answerProcessedRef.current = true;
+            setIsAnswerSelected(true);
+            onTimeUp();
+          }
+          return 0;
+        }
+        
+        // Play tick sound for last 5 seconds
+        if (prev <= 5) {
+          try {
+            playTickSound();
+          } catch (e) {
+            // Silently handle sound errors
+          }
+        }
+        
+        // Decrement timer
+        return prev - 1;
+      });
+    }, 1000);
+    
+    // Store timer reference
+    timerRef.current = newTimer;
+    
+    // Cleanup on unmount or before effect runs again
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [currentQuestionIndex, onTimeUp, stopTimer]);
 
   return (
     <div
@@ -233,21 +271,7 @@ export const QuizSection = ({
         ) : (
           <button
             id="skip-question-btn"
-            onClick={() => {
-              // Mark as answered but don't give points
-              if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-                timerIntervalRef.current = null;
-              }
-              setIsAnswerSelected(true);
-              setSelectedAnswerIndex(null);
-              try {
-                playIncorrectSound();
-              } catch (e) {
-                console.error("Error playing sound:", e);
-              }
-              onTimeUp(); // Notify parent component to handle the skipped question
-            }}
+            onClick={handleSkipQuestion}
             className="bg-gray-400 hover:bg-gray-500 text-white font-montserrat py-2 px-6 rounded-lg transition-all duration-300"
           >
             Skip Question
