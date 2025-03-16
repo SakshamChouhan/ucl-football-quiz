@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { QuizQuestion, LeaderboardEntry } from "@shared/schema";
-import { sortQuestionsByDifficulty, backupQuestions } from "@/lib/questions";
+import { sortQuestionsByDifficulty, backupQuestions, getRandomQuestions } from "@/lib/questions";
 import { useToast } from "@/hooks/use-toast";
 import { Trophy } from "lucide-react";
 
@@ -37,38 +37,47 @@ const Home = () => {
   const answerProcessedRef = useRef(false);
   const timeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch questions
-  const { data: questions = [], isLoading: isLoadingQuestions } = useQuery({
+  // Fetch questions - each API call gets randomized questions from the server
+  const { data: questions = [], isLoading: isLoadingQuestions } = useQuery<QuizQuestion[]>({
     queryKey: ["/api/questions"],
-    onError: () => {
-      toast({
-        title: "Failed to fetch questions",
-        description: "Using backup questions instead",
-        variant: "destructive",
-      });
-    },
+    staleTime: Infinity, // Don't refetch during a game session
   });
 
-  // Sort questions by difficulty
+  // Use success/error handlers outside options for better type compatibility
+  useEffect(() => {
+    if (questions && questions.length > 0) {
+      console.log(`Received ${questions.length} randomized questions for this game session`);
+    }
+  }, [questions]);
+
+  // Sort questions by difficulty (with explicit types)
   const sortedQuestions = sortQuestionsByDifficulty(
-    questions.length > 0 ? questions : backupQuestions
+    questions.length > 0 ? questions as QuizQuestion[] : backupQuestions
   );
 
-  // Fetch leaderboard
+  // Fetch leaderboard with proper types
   const { 
-    data: leaderboard = [], 
+    data: leaderboard = [] as LeaderboardEntry[], 
     isLoading: isLoadingLeaderboard,
     refetch: refetchLeaderboard
-  } = useQuery({
-    queryKey: ["/api/leaderboard"],
-    onError: () => {
+  } = useQuery<LeaderboardEntry[]>({
+    queryKey: ["/api/leaderboard"]
+  });
+  
+  // Handle leaderboard errors
+  useEffect(() => {
+    const handleError = () => {
       toast({
         title: "Failed to fetch leaderboard",
         description: "Please try again later",
         variant: "destructive",
       });
-    },
-  });
+    };
+    
+    if (!leaderboard && !isLoadingLeaderboard) {
+      handleError();
+    }
+  }, [leaderboard, isLoadingLeaderboard, toast]);
 
   // Submit score mutation
   const submitScoreMutation = useMutation({
@@ -121,13 +130,18 @@ const Home = () => {
 
   // Handle starting the quiz
   const handleStartQuiz = useCallback(() => {
+    // Get a fresh set of random questions for this quiz session
+    if (screenState === ScreenState.START) {
+      queryClient.invalidateQueries({ queryKey: ["/api/questions"] });
+    }
+    
     setScreenState(ScreenState.QUIZ);
     setCurrentQuestionIndex(0);
     setScore(0);
     setQuizStartTime(Date.now());
     setTotalQuizTime(0);
     answerProcessedRef.current = false;
-  }, []);
+  }, [screenState]);
 
   // Handle showing the leaderboard
   const handleShowLeaderboard = useCallback(() => {
@@ -183,6 +197,8 @@ const Home = () => {
 
   // Handle restarting the quiz
   const handleRestartQuiz = useCallback(() => {
+    // Refetch questions to get a new random set before starting a new quiz
+    queryClient.invalidateQueries({ queryKey: ["/api/questions"] });
     handleStartQuiz();
   }, [handleStartQuiz]);
 
