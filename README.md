@@ -8,7 +8,7 @@ The **UCL Quiz App** is an interactive football trivia game designed for UEFA Ch
 - ⏳ **Timed Challenges** – Answer quickly before the timer runs out.
 - 🎯 **Score Tracking** – Keep track of your progress and high scores.
 - 📱 **Responsive UI** – Optimized for desktop, tablet, and mobile devices.
-- 🔄 **Dynamic Questions** – Fresh quizzes added regularly.
+- 🔄 **Dynamic Questions** – Fresh quizzes added regularly.(in Progress)
 - 🌍 **Leaderboard** – Compete with other football fans worldwide. *(Optional work in Progress)*
 
 ## 🛠️ Tech Stack
@@ -81,3 +81,4 @@ npm run dev
 ## 📬 Contact
 For any questions or feedback, feel free to reach out:
 - 📧 Email: raisaksham426@gmail.com
+CodeLikeRed❤️
