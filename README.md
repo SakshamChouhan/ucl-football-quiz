@@ -34,19 +34,36 @@ The **UCL Quiz App** is an interactive football trivia game designed for UEFA Ch
 
 ## 📂 Project Structure  
 ucl-football-quiz/
-│── client/          # Frontend (React.js with Vite & Tailwind CSS)
-│── server/          # Backend (Node.js with Express.js)
-│── shared/          # Shared utilities & constants
-│── dist/            # Build output
-│── node_modules/    # Project dependencies
-│── .gitignore       # Files to exclude from Git
-│── package.json     # Project metadata & scripts
-│── package-lock.json # Dependency lock file
-│── drizzle.config.ts # Database ORM configuration
-│── tailwind.config.ts # Tailwind CSS setup
-│── vite.config.ts   # Vite project configuration
-│── tsconfig.json    # TypeScript configuration
-│── theme.json       # Theme settings
+│── client/              # Frontend (React.js with Vite & Tailwind CSS)
+│   ├── src/
+│   │   ├── components/  # Reusable UI components
+│   │   ├── data/        # Mock data for quizzes
+│   │   ├── hooks/       # Custom React hooks
+│   │   ├── lib/         # Utility functions
+│   │   ├── pages/       # Page components (Home, Quiz, Results, etc.)
+│   │   ├── App.tsx      # Main app component
+│   │   ├── main.tsx     # Entry point
+│   ├── public/          # Static assets (icons, images, etc.)
+│   ├── index.html       # Main HTML file
+│── server/              # Backend (Node.js with Express.js)
+│   ├── routes/          # API endpoints (quiz, users, scores, etc.)
+│   ├── controllers/     # Business logic for each route
+│   ├── models/          # Database models/schema
+│   ├── middleware/      # Auth, validation, etc.
+│   ├── db/              # Database connection & config
+│   ├── server.ts        # Main server entry point
+│── shared/              # Shared utilities & constants
+│── dist/                # Production build output
+│── node_modules/        # Project dependencies
+│── .gitignore           # Files to exclude from Git
+│── package.json         # Project metadata & scripts
+│── package-lock.json    # Dependency lock file
+│── drizzle.config.ts    # Database ORM configuration
+│── tailwind.config.ts   # Tailwind CSS setup
+│── vite.config.ts       # Vite project configuration
+│── tsconfig.json        # TypeScript configuration
+│── theme.json           # Theme settings
+
 
 
 
